@@ -407,11 +407,46 @@ public struct RuleEngine: Sendable {
               let match = pattern.firstMatch(in: rule, range: NSRange(rule.startIndex..., in: rule)),
               let full = Range(match.range, in: rule),
               let script = Range(match.range(at: match.range(at: 2).location == NSNotFound ? 1 : 2), in: rule) else { return nil }
+        var body = String(rule[script])
+        var suffix = String(rule[full.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        // As on Legado (AnalyzeRule.SourceRule.makeUpRule splits every segment, scripts
+        // included, at `##`), a `##` replacement applies to the script's result. One inside
+        // a string literal is left to the script, which Legado would split too, but rules
+        // passed to java.getString read well that way.
+        if let replacement = Self.replacementStart(inScript: body) {
+            suffix = String(body[replacement...]) + suffix
+            body = String(body[..<replacement])
+        }
         return .init(
             prefix: String(rule[..<full.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines),
-            script: String(rule[script]),
-            suffix: String(rule[full.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            script: body,
+            suffix: suffix
         )
+    }
+
+    /// Where a script's `##` replacement starts: the first `##` outside string literals.
+    static func replacementStart(inScript script: String) -> String.Index? {
+        var quote: Character?
+        var escaped = false
+        var index = script.startIndex
+        while index < script.endIndex {
+            let character = script[index]
+            if let open = quote {
+                if escaped {
+                    escaped = false
+                } else if character == "\\" {
+                    escaped = true
+                } else if character == open {
+                    quote = nil
+                }
+            } else if character == "'" || character == "\"" || character == "`" {
+                quote = character
+            } else if character == "#", script.index(after: index) < script.endIndex, script[script.index(after: index)] == "#" {
+                return index
+            }
+            index = script.index(after: index)
+        }
+        return nil
     }
 
     private func extractPutRules(_ source: String) throws -> (rule: String, puts: [String: String]) {

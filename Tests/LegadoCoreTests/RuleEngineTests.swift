@@ -24,6 +24,15 @@ struct RuleEngineTests {
         #expect(replaced.diagnostics.isEmpty)
     }
 
+    @Test func aReplacementAfterAnAtJSScriptAppliesToItsResult() async {
+        let result = await engine.evaluate(
+            "tag.a@href\n@js:result.replace('/go?u=', '')\n##[^/]+//",
+            inText: "<a href='/go?u=https://site.test/book/1'>A</a>"
+        )
+        #expect(result.strings == ["site.test/book/1"])
+        #expect(result.diagnostics.isEmpty)
+    }
+
     @Test func listJavaScriptReceivesWholeListAndScalarJavaScriptReceivesJoinedText() async {
         let list = await engine.evaluate(
             "tag.a<js>result.reverse()</js>",
@@ -53,6 +62,11 @@ struct RuleEngineTests {
         #expect(inline.strings == ["https://example.test/42"])
         let script = await engine.evaluate("@js:result.replace('##', '')", inText: "正文##")
         #expect(script.strings == ["正文"])
+        // Legado splits a script at ## as it does any rule: what follows replaces in its result
+        let replaced = await engine.evaluate("<js>result + '广告'</js>", inText: "正文")
+        #expect(replaced.strings == ["正文广告"])
+        let tagged = await engine.evaluate("<js>result + '广告'##广告</js>", inText: "正文")
+        #expect(tagged.strings == ["正文"])
         let nested = await engine.evaluate("{{@CSS:h1@text}}-{{//p/text()}}", inText: "<h1>书名</h1><p>作者</p>")
         #expect(nested.strings == ["书名-作者"])
         let jsonString = await engine.evaluate("<js>result</js>{{$.name}}", inText: #"{"name":"书名"}"#)
