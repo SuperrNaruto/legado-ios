@@ -33,6 +33,10 @@ private final class BackgroundWebViewRequest: NSObject, WKNavigationDelegate {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         webView = WKWebView(frame: .zero, configuration: configuration)
+        // as Legado's web view does: the source's User-Agent, or the desktop one requests
+        // use; the web view's own would get sites' mobile pages, which rules do not read
+        webView.customUserAgent = prepared.headers.first { $0.key.caseInsensitiveCompare("User-Agent") == .orderedSame }?.value
+            ?? LegadoURLBuilder.defaultUserAgent
         super.init()
         webView.navigationDelegate = self
     }
@@ -105,6 +109,9 @@ private final class BackgroundWebViewRequest: NSObject, WKNavigationDelegate {
                 try? await Task.sleep(nanoseconds: UInt64(max(0, prepared.webViewDelayMilliseconds)) * 1_000_000)
             }
             guard !Task.isCancelled, !completed else { return }
+            // A challenge page (Cloudflare's, Qidian's probe) loads the real page once its
+            // script has run; that navigation finishes in its turn.
+            if await navigationFollows() { return }
             if let script = prepared.webJavaScript, !script.isEmpty {
                 do { _ = try await webView.evaluateJavaScript(script) }
                 catch { finish(.failure(error)); return }
@@ -130,6 +137,16 @@ private final class BackgroundWebViewRequest: NSObject, WKNavigationDelegate {
                 finish(.failure(error))
             }
         }
+    }
+
+    private func navigationFollows() async -> Bool {
+        let challenged = [202, 403, 429, 503].contains(responseStatus)
+        let deadline = Date().addingTimeInterval(challenged ? 8 : 0)
+        repeat {
+            if webView.isLoading || completed { return true }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        } while Date() < deadline
+        return webView.isLoading
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation?, withError error: Error) {

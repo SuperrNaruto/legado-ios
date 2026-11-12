@@ -210,6 +210,32 @@ extension JavaScriptRuleEvaluator {
             body: function () { return this.selectFirst('body') || this; },
             toString: function () { return this.__html; }
           };
+          // On Legado a list rule's result is Jsoup's Elements, and scripts call text(),
+          // attr() or select() on it and its items; here they are HTML text, which gets
+          // the same methods, and stays text for scripts that treat it so.
+          function define(target, name, value) {
+            if (!Object.prototype.hasOwnProperty.call(target, name)) {
+              Object.defineProperty(target, name, { value: value, writable: true, configurable: true });
+            }
+          }
+          ['text', 'ownText', 'html', 'outerHtml', 'attr', 'hasAttr', 'tagName', 'select', 'selectFirst',
+           'children', 'child', 'getElementsByTag', 'getElementsByClass', 'getElementById', 'body'].forEach(function (name) {
+            define(String.prototype, name, function () {
+              var element = new LegadoElement(String(this));
+              return element[name].apply(element, arguments);
+            });
+          });
+          function asElements(list) { return elements(list.map(function (item) { return item && item.__html !== undefined ? item.__html : String(item); })); }
+          ['text', 'eachText', 'eachAttr', 'html', 'outerHtml', 'attr', 'select'].forEach(function (name) {
+            define(Array.prototype, name, function () {
+              var items = asElements(this);
+              return items[name].apply(items, arguments);
+            });
+          });
+          define(Array.prototype, 'size', function () { return this.length; });
+          define(Array.prototype, 'get', function (index) { return this[index]; });
+          define(Array.prototype, 'first', function () { return this.length ? this[0] : null; });
+          define(Array.prototype, 'last', function () { return this.length ? this[this.length - 1] : null; });
           global.__legadoElement = LegadoElement;
           global.__legadoElementsOf = elements;
           var Jsoup = {

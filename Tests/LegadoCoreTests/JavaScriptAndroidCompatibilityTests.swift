@@ -40,6 +40,14 @@ struct JavaScriptAndroidCompatibilityTests {
         #expect(try run(script, result: .string(page)) == "2:第二本:One:0")
     }
 
+    @Test func htmlTextActsAsJsoupElements() throws {
+        let list: JSONValue = .array([.string(#"<li><a href="/1">一</a></li>"#), .string(#"<li><a href="/2">二</a></li>"#)])
+        let script = "$[1].text() + '|' + result.select('a').attr('href') + '|' + result.text() + '|' + result[0].length + '|' + result.size()"
+        #expect(try run(script, result: list) == "二|/1|一 二|\(#"<li><a href="/1">一</a></li>"#.count)|2")
+        // still text where scripts treat it so
+        #expect(try run("result.replace('一', '壹').split('>').length", result: .string("<b>一</b>")) == "3")
+    }
+
     @Test func stringListsAreEachValue() throws {
         let script = "java.getStringList('class.book@tag.a@text', result).join('|') + ';' + java.getStringList('$.n', '{\"n\":[1,2]}').length"
         #expect(try run(script, result: .string(page)) == "第一本|第二本;2")
