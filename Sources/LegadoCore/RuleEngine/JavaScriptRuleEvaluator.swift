@@ -193,7 +193,8 @@ public struct JavaScriptRuleEvaluator: Sendable {
     }
 
     public init(
-        maximumScriptLength: Int = 64 * 1_024,
+        // published sources' jsLib reach 150 KB
+        maximumScriptLength: Int = 1_024 * 1_024,
         maximumResultLength: Int = 2 * 1_024 * 1_024,
         networkLoader: any JavaScriptNetworkLoading = SynchronousJavaScriptNetworkLoader(),
         urlBuilder: LegadoURLBuilder = .init()
@@ -258,10 +259,12 @@ public struct JavaScriptRuleEvaluator: Sendable {
         context.setObject(executionContext.page ?? 0, forKeyedSubscript: "page" as NSString)
         installJava(in: context, variables: box, result: result, executionContext: executionContext)
         installCookie(in: context)
+        installAndroidClasses(in: context)
         installJavaImporterCompatibility(in: context)
         installSource(in: context, source: executionContext.source, variables: box)
         installBook(in: context, book: executionContext.book)
         installChapter(in: context, chapter: executionContext.chapter)
+        installAndroidAPIs(in: context, result: result, executionContext: executionContext)
         context.evaluateScript("""
             (function () {
               var nativeParse = JSON.parse;
@@ -1020,6 +1023,44 @@ public struct JavaScriptRuleEvaluator: Sendable {
            let direct = object[trimmedRule] {
             return resolveJavaScriptRuleURL(direct.stringValue, enabled: isURL, context: executionContext)
         }
+        let (combined, plan) = try stringRuleValues(trimmedRule, content: content, executionContext: executionContext)
+        var result = combined.joined(separator: "\n")
+        if let branch = plan.branches.first, let pattern = branch.replacePattern, !pattern.isEmpty {
+            result = try RegexEvaluator().replacing(pattern: pattern, in: result, with: branch.replacement, firstOnly: branch.replaceFirst)
+        }
+        return resolveJavaScriptRuleURL(result, enabled: isURL, context: executionContext)
+    }
+
+    /// `java.getStringList`: each value a rule finds, replaced and resolved one by one.
+    func evaluateStringRuleValues(
+        _ rule: String,
+        content: JSONValue,
+        isURL: Bool,
+        executionContext: RuleExecutionContext
+    ) throws -> [String] {
+        let trimmedRule = rule.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedRule.isEmpty else { return [] }
+        if case .object(let object) = content, let direct = object[trimmedRule] {
+            if case .array(let items) = direct {
+                return items.map { resolveJavaScriptRuleURL($0.stringValue, enabled: isURL, context: executionContext) }
+            }
+            return [resolveJavaScriptRuleURL(direct.stringValue, enabled: isURL, context: executionContext)]
+        }
+        let (combined, plan) = try stringRuleValues(trimmedRule, content: content, executionContext: executionContext)
+        return try combined.map { value in
+            var value = value
+            if let branch = plan.branches.first, let pattern = branch.replacePattern, !pattern.isEmpty {
+                value = try RegexEvaluator().replacing(pattern: pattern, in: value, with: branch.replacement, firstOnly: branch.replaceFirst)
+            }
+            return resolveJavaScriptRuleURL(value, enabled: isURL, context: executionContext)
+        }
+    }
+
+    private func stringRuleValues(
+        _ trimmedRule: String,
+        content: JSONValue,
+        executionContext: RuleExecutionContext
+    ) throws -> ([String], RulePlan) {
 
         let jsonContent: JSONValue?
         if case .string(let text) = content { jsonContent = try? JSONValue.decode(data: Data(text.utf8)) }
@@ -1074,16 +1115,12 @@ public struct JavaScriptRuleEvaluator: Sendable {
         case .fallback:
             combined = branchResults.first(where: { !$0.isEmpty }) ?? []
         case .interleave:
-            guard let firstCount = branchResults.first?.count else { return "" }
+            guard let firstCount = branchResults.first?.count else { return ([], plan) }
             combined = (0..<firstCount).flatMap { index in
                 branchResults.compactMap { $0.indices.contains(index) ? $0[index] : nil }
             }
         }
-        var result = combined.joined(separator: "\n")
-        if let branch = plan.branches.first, let pattern = branch.replacePattern, !pattern.isEmpty {
-            result = try RegexEvaluator().replacing(pattern: pattern, in: result, with: branch.replacement, firstOnly: branch.replaceFirst)
-        }
-        return resolveJavaScriptRuleURL(result, enabled: isURL, context: executionContext)
+        return (combined, plan)
     }
 
     private func resolveJavaScriptRuleURL(
@@ -1101,13 +1138,15 @@ public struct JavaScriptRuleEvaluator: Sendable {
 
     private func rejectUnboundedExecution(_ script: String) throws {
         let compact = script.replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression).lowercased()
-        let rejected = ["while(true)", "while(1)", "for(;;)", "eval(", "functionconstructor("]
+        // eval runs code no less bounded than the script itself; sources use it to unpack
+        // scripts the site serves
+        let rejected = ["while(true)", "while(1)", "for(;;)", "functionconstructor("]
         if let token = rejected.first(where: compact.contains) {
             throw RuleEngineError.resourceLimit(rule: script, detail: "JavaScript 包含未受控执行结构：\(token)")
         }
     }
 
-    private static func stringify(_ value: Any?) -> String {
+    static func stringify(_ value: Any?) -> String {
         guard let value else { return "" }
         if let value = value as? String { return value }
         if JSONSerialization.isValidJSONObject(value),
@@ -1134,7 +1173,7 @@ public struct JavaScriptRuleEvaluator: Sendable {
         }
     }
 
-    private static func byteData(from value: Any?) -> Data {
+    static func byteData(from value: Any?) -> Data {
         let values: [Any]
         if let value = value as? [Any] {
             values = value
@@ -1272,11 +1311,16 @@ public struct JavaScriptRuleEvaluator: Sendable {
             printHexBinary: function (bytes) { return __legadoHexEncodeBytes(checkedBytes(bytes)); }
           });
           var packages = {
+            org: { jsoup: { Jsoup: global.__legadoJsoup } },
             javax: {
               crypto: { Mac: Mac, Cipher: Cipher, spec: { SecretKeySpec: SecretKeySpec, IvParameterSpec: IvParameterSpec } },
               xml: { bind: { DatatypeConverter: DatatypeConverter } }
             },
-            java: { net: { URLEncoder: URLEncoder }, lang: { String: JavaString }, util: { Base64: Base64, Arrays: Arrays } },
+            java: {
+              net: { URLEncoder: URLEncoder },
+              lang: { String: JavaString, Thread: global.__legadoThread },
+              util: { Base64: Base64, Arrays: Arrays, HashMap: global.__legadoHashMap, ArrayList: global.__legadoArrayList }
+            },
             android: { util: { Base64: Base64 } }
           };
           Object.freeze(packages.javax.crypto.spec);
@@ -1289,12 +1333,15 @@ public struct JavaScriptRuleEvaluator: Sendable {
           Object.freeze(packages.java.util);
           Object.freeze(packages.java);
           Object.freeze(packages.android.util);
+          Object.freeze(packages.org.jsoup);
+          Object.freeze(packages.org);
           Object.freeze(packages.android);
           global.Packages = Object.freeze(packages);
           global.JavaImporter = Object.freeze(function () {
             var imported = Object.create(null);
             var allowedPackages = [packages.java.lang, packages.java.net, packages.java.util,
-              packages.javax.crypto, packages.javax.crypto.spec, packages.javax.xml.bind, packages.android.util];
+              packages.javax.crypto, packages.javax.crypto.spec, packages.javax.xml.bind, packages.android.util,
+              packages.org.jsoup];
             function addClass(value) {
               if (!value || typeof value.__javaSimpleName !== 'string') throw new TypeError('Unsupported Java class import');
               if (!Object.prototype.hasOwnProperty.call(imported, value.__javaSimpleName)) {

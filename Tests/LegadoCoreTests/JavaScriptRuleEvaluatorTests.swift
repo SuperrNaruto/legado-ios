@@ -94,6 +94,18 @@ private final class JavaScriptDirectRequestMock: JavaScriptRedirectNetworkLoadin
 }
 
 struct JavaScriptRuleEvaluatorTests {
+    @Test func evalAndLargeLibrariesRun() throws {
+        var source = BookSource(bookSourceUrl: "https://lib.example.test", bookSourceName: "Lib")
+        source.jsLib = "var padding = '" + String(repeating: "x", count: 150 * 1_024) + "';\n"
+            + "function unpack(code) { return eval(code); }"
+        let value = try JavaScriptRuleEvaluator().evaluate(
+            script: "unpack('1 + 2') + padding.length",
+            result: .null,
+            executionContext: .init(source: source)
+        )
+        #expect(value.value.stringValue == "\(3 + 150 * 1_024)")
+    }
+
     @Test func decryptsSourceContentUsingRhinoPackageImportsAndAESByteArrays() throws {
         // OpenSSL AES-128-CBC/PKCS7 fixture, with a 16-byte IV prepended.
         let script = #"""
