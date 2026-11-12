@@ -11,9 +11,9 @@ let package = Package(
         .library(name: "LegadoCore", targets: ["LegadoCore"])
     ],
     dependencies: [
-        .package(url: "https://github.com/scinfu/SwiftSoup.git", exact: "2.13.5"),
-        .package(url: "https://github.com/tid-kijyun/Kanna.git", exact: "6.1.0"),
-        .package(url: "https://github.com/weichsel/ZIPFoundation.git", exact: "0.9.20")
+        .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.13.5"),
+        .package(url: "https://github.com/tid-kijyun/Kanna.git", from: "6.1.0"),
+        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.20")
     ],
     targets: [
         .target(
