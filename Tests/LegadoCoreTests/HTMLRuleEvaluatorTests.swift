@@ -54,6 +54,11 @@ struct HTMLRuleEvaluatorTests {
         #expect(result.diagnostics.isEmpty)
     }
 
+    @Test func aClassWithSpacesNamesSeveralClassesOfOneElement() throws {
+        let page = #"<div class="comic-list clearfix"><p class="item">A</p><p class="item">B</p></div><div class="comic-list"><p class="item">C</p></div>"#
+        #expect(try evaluator.extractCSS("class.comic-list clearfix@class.item@text", html: page) == ["A", "B"])
+    }
+
     @Test func supportsLegadoChainAndIndexedSelectors() throws {
         #expect(try evaluator.extractCSS("id.books@tag.li[1]@class.title@text", html: html) == ["B"])
         #expect(try evaluator.extractCSS("li.book[-1:0]@class.title@text", html: html) == ["B", "A & One"])

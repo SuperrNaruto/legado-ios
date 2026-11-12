@@ -207,7 +207,11 @@ public struct HTMLRuleEvaluator: Sendable {
     }
 
     private func cssSelector(_ legacy: String) -> String {
-        if legacy.hasPrefix("class.") { return "." + legacy.dropFirst(6) }
+        if legacy.hasPrefix("class.") {
+            // Legado (Jsoup getElementsByClass) takes `class.a b` as one class attribute
+            // naming both, not as CSS's descendant selector.
+            return "." + legacy.dropFirst(6).split(whereSeparator: \.isWhitespace).joined(separator: ".")
+        }
         if legacy.hasPrefix("tag.") { return String(legacy.dropFirst(4)) }
         if legacy.hasPrefix("id.") { return "#" + legacy.dropFirst(3) }
         if legacy.hasPrefix("text.") {
