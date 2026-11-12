@@ -90,6 +90,18 @@ struct JavaScriptAndroidCompatibilityTests {
         #expect(try run("cache.put('\(key)', 'gone', 60); cache.delete('\(key)'); String(cache.get('\(key)'))") == "null")
     }
 
+    @Test func siteScriptsSeeABrowsersGlobals() throws {
+        // a nonce of Tencent's comics
+        let script = #"""
+            var n = "2c" + (+eval("1 - !!document.children")).toString()
+                + (+eval("!!document.getElementsByTagName('html')")).toString()
+                + (+eval("1 * (!window.Array) + 1")).toString();
+            window["no" + "nce"] = n;
+            nonce
+            """#
+        #expect(try run(script) == "2c011")
+    }
+
     @Test func javaClassesImportAndRun() throws {
         let script = """
             importClass(Packages.java.util.HashMap);

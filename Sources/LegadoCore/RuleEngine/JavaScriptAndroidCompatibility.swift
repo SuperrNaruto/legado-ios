@@ -274,6 +274,20 @@ extension JavaScriptRuleEvaluator {
           }
           Object.defineProperty(ArrayList, '__javaSimpleName', { value: 'ArrayList' });
           global.__legadoArrayList = ArrayList;
+          // Sites' scripts that sources eval, such as the nonce of Tencent's comics, probe
+          // `window` and `document` as a browser has them: an empty page's document.
+          if (typeof global.window === 'undefined') global.window = global;
+          if (typeof global.document === 'undefined') {
+            var html = { tagName: 'HTML', children: [] };
+            global.document = {
+              documentElement: html,
+              children: [html],
+              getElementsByTagName: function (tag) { return String(tag).toLowerCase() === 'html' ? [html] : []; },
+              getElementById: function () { return null; },
+              querySelector: function () { return null; },
+              querySelectorAll: function () { return []; }
+            };
+          }
         })(this);
         """#
 

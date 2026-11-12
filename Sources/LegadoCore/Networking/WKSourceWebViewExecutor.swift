@@ -25,6 +25,11 @@ private final class BackgroundWebViewRequest: NSObject, WKNavigationDelegate {
     private var responseHeaders: [String: String] = [:]
     private var completed = false
     private var timeoutTask: Task<Void, Never>?
+    private var settleTask: Task<Void, Never>?
+    private var capturing = false
+    /// How long a parsed page may load what it embeds (captchas, trackers) before its
+    /// document is taken as it is.
+    private static let subresourceGrace: TimeInterval = 10
 
     init(prepared: PreparedRequest, source: BookSource, timeout: TimeInterval) {
         self.prepared = prepared
@@ -93,13 +98,35 @@ private final class BackgroundWebViewRequest: NSObject, WKNavigationDelegate {
         decidePolicyFor navigationResponse: WKNavigationResponse,
         decisionHandler: @escaping @MainActor (WKNavigationResponsePolicy) -> Void
     ) {
-        if let response = navigationResponse.response as? HTTPURLResponse {
+        // a frame's response is not the page's
+        if navigationResponse.isForMainFrame, let response = navigationResponse.response as? HTTPURLResponse {
             responseStatus = response.statusCode
             responseHeaders = response.allHeaderFields.reduce(into: [:]) { result, entry in
                 result[String(describing: entry.key)] = String(describing: entry.value)
             }
         }
         decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation?) {
+        settleTask?.cancel()
+    }
+
+    /// A page's own document, once parsed, is what the source reads; what it embeds may
+    /// keep it loading well past that, so it is taken after a grace if it has not finished.
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation?) {
+        settleTask?.cancel()
+        guard !Self.isChallenge(responseStatus) else { return }
+        settleTask = Task { [weak self] in
+            while let self, !Task.isCancelled,
+                  (try? await webView.evaluateJavaScript("document.readyState") as? String) == "loading" {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            let delay = max(Self.subresourceGrace, Double(self?.prepared.webViewDelayMilliseconds ?? 0) / 1_000)
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self, !Task.isCancelled, !completed else { return }
+            await capture()
+        }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
@@ -112,35 +139,48 @@ private final class BackgroundWebViewRequest: NSObject, WKNavigationDelegate {
             // A challenge page (Cloudflare's, Qidian's probe) loads the real page once its
             // script has run; that navigation finishes in its turn.
             if await navigationFollows() { return }
-            if let script = prepared.webJavaScript, !script.isEmpty {
-                do { _ = try await webView.evaluateJavaScript(script) }
-                catch { finish(.failure(error)); return }
-            }
-            do {
-                let html = try await webView.evaluateJavaScript("document.documentElement.outerHTML") as? String ?? ""
-                let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
-                cookies.forEach(HTTPCookieStorage.shared.setCookie)
-                let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)["Cookie"] ?? ""
-                if !cookieHeader.isEmpty {
-                    await SourceNetworkPolicy.shared.setCookieHeader(cookieHeader, sourceID: source.id, url: prepared.url)
-                }
-                var headers = responseHeaders
-                if !cookieHeader.isEmpty { headers["Set-Cookie"] = cookieHeader }
-                finish(.success(.init(
-                    data: Data(html.utf8),
-                    statusCode: responseStatus,
-                    headers: headers,
-                    finalURL: webView.url ?? prepared.url,
-                    requestedCharset: "utf-8"
-                )))
-            } catch {
-                finish(.failure(error))
-            }
+            await capture()
         }
     }
 
+    /// The page as it is now, with the cookies it set.
+    private func capture() async {
+        // the page may finish loading while its grace is being taken
+        guard !completed, !capturing else { return }
+        capturing = true
+        if let script = prepared.webJavaScript, !script.isEmpty {
+            do { _ = try await webView.evaluateJavaScript(script) }
+            catch { finish(.failure(error)); return }
+        }
+        guard !completed else { return }
+        do {
+            let html = try await webView.evaluateJavaScript("document.documentElement.outerHTML") as? String ?? ""
+            let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
+            cookies.forEach(HTTPCookieStorage.shared.setCookie)
+            let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)["Cookie"] ?? ""
+            if !cookieHeader.isEmpty {
+                await SourceNetworkPolicy.shared.setCookieHeader(cookieHeader, sourceID: source.id, url: prepared.url)
+            }
+            var headers = responseHeaders
+            if !cookieHeader.isEmpty { headers["Set-Cookie"] = cookieHeader }
+            finish(.success(.init(
+                data: Data(html.utf8),
+                statusCode: responseStatus,
+                headers: headers,
+                finalURL: webView.url ?? prepared.url,
+                requestedCharset: "utf-8"
+            )))
+        } catch {
+            finish(.failure(error))
+        }
+    }
+
+    private static func isChallenge(_ status: Int) -> Bool {
+        [202, 403, 429, 503].contains(status)
+    }
+
     private func navigationFollows() async -> Bool {
-        let challenged = [202, 403, 429, 503].contains(responseStatus)
+        let challenged = Self.isChallenge(responseStatus)
         let deadline = Date().addingTimeInterval(challenged ? 8 : 0)
         repeat {
             if webView.isLoading || completed { return true }
@@ -161,6 +201,7 @@ private final class BackgroundWebViewRequest: NSObject, WKNavigationDelegate {
         guard !completed else { return }
         completed = true
         timeoutTask?.cancel()
+        settleTask?.cancel()
         webView.stopLoading()
         continuation?.resume(with: result)
         continuation = nil
