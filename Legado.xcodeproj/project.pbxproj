@@ -70,11 +70,13 @@
 		C1000000000000000000000D /* RuleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000000000000000000000D /* RuleEngine.swift */; };
 		C1000000000000000000000E /* LegadoURLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000000000000000000000E /* LegadoURLBuilder.swift */; };
 		C1000000000000000000000F /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000000000000000000000F /* HTTPClient.swift */; };
+		C10000000000000000007002 /* WKSourceWebViewExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000007002 /* WKSourceWebViewExecutor.swift */; };
 		C10000000000000000000010 /* BookSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000010 /* BookSearchService.swift */; };
 		C10000000000000000000011 /* HTMLRuleEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000011 /* HTMLRuleEvaluator.swift */; };
 		C10000000000000000000012 /* NetworkBookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000012 /* NetworkBookService.swift */; };
 		C10000000000000000000013 /* BookRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000013 /* BookRepository.swift */; };
 		C10000000000000000000014 /* JavaScriptRuleEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000014 /* JavaScriptRuleEvaluator.swift */; };
+		C10000000000000000007001 /* JavaScriptAndroidCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000007001 /* JavaScriptAndroidCompatibility.swift */; };
 		C10000000000000000000015 /* ExploreKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000015 /* ExploreKind.swift */; };
 		C10000000000000000000016 /* BookExploreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000016 /* BookExploreService.swift */; };
 		C10000000000000000000017 /* BookSourceDebugger.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000017 /* BookSourceDebugger.swift */; };
@@ -203,11 +205,13 @@
 		C2000000000000000000000D /* RuleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleEngine.swift; sourceTree = "<group>"; };
 		C2000000000000000000000E /* LegadoURLBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegadoURLBuilder.swift; sourceTree = "<group>"; };
 		C2000000000000000000000F /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClient.swift; sourceTree = "<group>"; };
+		C20000000000000000007002 /* WKSourceWebViewExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WKSourceWebViewExecutor.swift; sourceTree = "<group>"; };
 		C20000000000000000000010 /* BookSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSearchService.swift; sourceTree = "<group>"; };
 		C20000000000000000000011 /* HTMLRuleEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLRuleEvaluator.swift; sourceTree = "<group>"; };
 		C20000000000000000000012 /* NetworkBookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkBookService.swift; sourceTree = "<group>"; };
 		C20000000000000000000013 /* BookRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookRepository.swift; sourceTree = "<group>"; };
 		C20000000000000000000014 /* JavaScriptRuleEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScriptRuleEvaluator.swift; sourceTree = "<group>"; };
+		C20000000000000000007001 /* JavaScriptAndroidCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScriptAndroidCompatibility.swift; sourceTree = "<group>"; };
 		C20000000000000000000015 /* ExploreKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreKind.swift; sourceTree = "<group>"; };
 		C20000000000000000000016 /* BookExploreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookExploreService.swift; sourceTree = "<group>"; };
 		C20000000000000000000017 /* BookSourceDebugger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSourceDebugger.swift; sourceTree = "<group>"; };
@@ -496,6 +500,7 @@
 				C2000000000000000000000D /* RuleEngine.swift */,
 				C20000000000000000000011 /* HTMLRuleEvaluator.swift */,
 				C20000000000000000000014 /* JavaScriptRuleEvaluator.swift */,
+				C20000000000000000007001 /* JavaScriptAndroidCompatibility.swift */,
 			);
 			path = RuleEngine;
 			sourceTree = "<group>";
@@ -507,6 +512,7 @@
 				E20000000000000000000002 /* HostsHTTPTransport.swift */,
 				C2000000000000000000000E /* LegadoURLBuilder.swift */,
 				C2000000000000000000000F /* HTTPClient.swift */,
+				C20000000000000000007002 /* WKSourceWebViewExecutor.swift */,
 				C20000000000000000000021 /* BookSourceHeaderResolver.swift */,
 			);
 			path = Networking;
@@ -807,11 +813,13 @@
 				C1000000000000000000000D /* RuleEngine.swift in Sources */,
 				C1000000000000000000000E /* LegadoURLBuilder.swift in Sources */,
 				C1000000000000000000000F /* HTTPClient.swift in Sources */,
+				C10000000000000000007002 /* WKSourceWebViewExecutor.swift in Sources */,
 				C10000000000000000000010 /* BookSearchService.swift in Sources */,
 				C10000000000000000000011 /* HTMLRuleEvaluator.swift in Sources */,
 				C10000000000000000000012 /* NetworkBookService.swift in Sources */,
 				C10000000000000000000013 /* BookRepository.swift in Sources */,
 				C10000000000000000000014 /* JavaScriptRuleEvaluator.swift in Sources */,
+				C10000000000000000007001 /* JavaScriptAndroidCompatibility.swift in Sources */,
 				C10000000000000000000015 /* ExploreKind.swift in Sources */,
 				C10000000000000000000016 /* BookExploreService.swift in Sources */,
 				C10000000000000000000017 /* BookSourceDebugger.swift in Sources */,
